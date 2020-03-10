@@ -484,6 +484,9 @@ class EasyConfig(object):
         # filter hidden dependencies from list of dependencies
         self.filter_hidden_deps()
 
+        # Check if a hidden dependencies is instaled as visible
+        self.check_hidden_dependencies()
+
         self._all_dependencies = None
 
         # keep track of whether the generated module file should be hidden
@@ -916,6 +919,21 @@ class EasyConfig(object):
             dep_mod_names = [dep['full_mod_name'] for dep in self['dependencies'] + self['builddependencies']]
             raise EasyBuildError("Hidden deps with visible module names %s not in list of (build)dependencies: %s",
                                  faulty_deps, dep_mod_names)
+
+    def check_hidden_dependencies(self):
+        # obtain reference to original lists, so their elements can be changed in place
+        possible_dependencies_type = ['dependencies', 'builddependencies', 'hiddendependencies']
+        deps = dict([(key, self.get_ref(key)) for key in possible_dependencies_type])
+
+        for dep_type in possible_dependencies_type:
+            for dep in deps[dep_type]:
+                if dep['hidden']:
+                    visible_mod_name = ActiveMNS().det_full_module_name(dep, force_visible=True)
+                    if self.modules_tool.exist([visible_mod_name])[0]:
+                        dep['hidden'] = False
+                        dep['full_mod_name'] = ActiveMNS().det_full_module_name(dep)
+                        dep['short_mod_name'] = ActiveMNS().det_short_module_name(dep)
+                        self.log.info("Replacing hidden dependency %s with matching visible dependency", dep['short_mod_name'])
 
     def parse_version_range(self, version_spec):
         """Parse provided version specification as a version range."""
